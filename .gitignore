@@ -1,0 +1,41 @@
+# Python / uv environments and local cache
+.venv/
+venv/
+env/
+.uv-cache/
+
+# Python bytecode and tooling caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# TouchDesigner automatic backups and crash recovery
+Backup/
+CrashAutoSave.toe
+CrashAutoSave.*.toe
+
+# Keep uv.lock, .python-version, source previews, .toe and .tox versioned.

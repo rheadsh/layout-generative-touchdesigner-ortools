@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360.0" height="480.0" viewBox="0 0 1080.0 1440.0">
+<rect width="1080.0" height="1440.0" fill="#fff" stroke="#000"/>
+<rect x="48.0" y="48.0" width="984.0" height="242.2" fill="#111"/>
+<text x="58.0" y="88.0" font-size="32" font-family="sans-serif" fill="#fff">titular</text>
+<rect x="48.0" y="302.2" width="652.0" height="411.8" fill="#c9c3b8"/>
+<text x="58.0" y="342.2" font-size="32" font-family="sans-serif" fill="#000">foto1</text>
+<rect x="48.0" y="726.0" width="652.0" height="72.8" fill="#f4d35e"/>
+<text x="58.0" y="766.0" font-size="32" font-family="sans-serif" fill="#000">pie1</text>
+<rect x="712.0" y="726.0" width="320.0" height="666.0" fill="#e8e4dc"/>
+<text x="722.0" y="766.0" font-size="32" font-family="sans-serif" fill="#000">cuerpo1</text>
+<rect x="48.0" y="810.8" width="486.0" height="157.5" fill="#ee6c4d"/>
+<text x="58.0" y="850.8" font-size="32" font-family="sans-serif" fill="#000">cita</text>
+<rect x="48.0" y="980.2" width="237.0" height="327.0" fill="#c9c3b8"/>
+<text x="58.0" y="1020.2" font-size="32" font-family="sans-serif" fill="#000">foto2</text>
+<rect x="297.0" y="980.2" width="403.0" height="411.8" fill="#e8e4dc"/>
+<text x="307.0" y="1020.2" font-size="32" font-family="sans-serif" fill="#000">cuerpo2</text>
+</svg>

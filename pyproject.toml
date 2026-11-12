@@ -1,0 +1,14 @@
+[project]
+name = "layout-generative"
+version = "0.1.0"
+description = "Solver editorial CP-SAT (OR-Tools) para TouchDesigner"
+# Misma versión que el Python embebido de TouchDesigner 2025.x
+requires-python = "==3.11.*"
+dependencies = [
+    "ortools>=9.15",
+    # Fijado a la versión que trae TD: TD carga la suya primero y deben coincidir.
+    "numpy==2.1.2",
+]
+
+[tool.uv]
+package = false
