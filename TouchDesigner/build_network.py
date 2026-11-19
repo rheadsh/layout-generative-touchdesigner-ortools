@@ -2,7 +2,7 @@
 Construye el componente 'editorial_solver' en TouchDesigner.
 
 Uso (Textport, Alt+T):
-    exec(open('/Users/robertocabezas/Documents/_AI_Ecosystems/claude-code/layout-generative/td/build_network.py', encoding='utf-8').read())
+    exec(open('/Users/robertocabezas/Documents/_AI_Ecosystems/claude-code/layout-generative/TouchDesigner/build_network.py', encoding='utf-8').read())
 
 Requiere haber corrido `uv sync` en la raíz del proyecto (crea .venv con Python 3.11).
 """
@@ -11,7 +11,7 @@ import os
 
 # --- RUTAS ----------------------------------------------------------------
 PROJECT_DIR = '/Users/robertocabezas/Documents/_AI_Ecosystems/claude-code/layout-generative'
-TD_DIR = os.path.join(PROJECT_DIR, 'td')
+TD_DIR = os.path.join(PROJECT_DIR, 'TouchDesigner')
 # site-packages del entorno uv; la Extension lo agrega con sys.path.append
 LIB_DIR = os.path.join(PROJECT_DIR, '.venv', 'lib', 'python3.11', 'site-packages')
 PARENT = '/project1'

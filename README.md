@@ -24,22 +24,22 @@ cachés locales se excluyen con `.gitignore`.
 
 ## Abrir o construir el workflow
 
-Abre `td/layout_workflow.toe` o arrastra `td/editorial_solver.tox` a tu red.
+Abre `TouchDesigner/layout_workflow.toe` o arrastra `TouchDesigner/editorial_solver.tox` a tu red.
 El componente del proyecto está en `/project1/editorial_solver`.
 
-Para construirlo desde los scripts, ajusta `PROJECT_DIR` en `td/build_network.py`
+Para construirlo desde los scripts, ajusta `PROJECT_DIR` en `TouchDesigner/build_network.py`
 a la ruta de tu copia y ejecuta en el Textport de TouchDesigner:
 
 ```python
-exec(open('/ruta/layout-generative/td/build_network.py', encoding='utf-8-sig').read())
+exec(open('/ruta/layout-generative/TouchDesigner/build_network.py', encoding='utf-8-sig').read())
 ```
 
 **El constructor reemplaza el componente `editorial_solver` existente.** Guarda
 antes los cambios que quieras conservar. Para actualizar el componente existente,
-ajusta `root_dir` en `td/update_workflow.py` y ejecuta:
+ajusta `root_dir` en `TouchDesigner/update_workflow.py` y ejecuta:
 
 ```python
-exec(open('/ruta/layout-generative/td/update_workflow.py', encoding='utf-8-sig').read())
+exec(open('/ruta/layout-generative/TouchDesigner/update_workflow.py', encoding='utf-8-sig').read())
 ```
 
 Los DATs de Python están vinculados a archivos en disco. Al mover el proyecto,
@@ -113,12 +113,12 @@ al render final utilizando los rectángulos de `layout_out` o `media_map`.
 |---|---|
 | `editorial_solver.py` | Modelo CP-SAT independiente de TouchDesigner. |
 | `test_solver.py` | Prueba de cuatro semillas y generación de previews SVG. |
-| `td/EditorialSolverExt.py` | Lectura de bloques, cálculo en segundo plano y actualización de resultados. |
-| `td/build_network.py` | Constructor de la red. |
-| `td/update_workflow.py` | Actualizador del componente existente. |
-| `td/preview_top.py` | Callbacks de la previsualización Script TOP. |
-| `td/editorial_solver.tox` | Componente reutilizable. |
-| `td/layout_workflow.toe` | Proyecto de TouchDesigner. |
+| `TouchDesigner/EditorialSolverExt.py` | Lectura de bloques, cálculo en segundo plano y actualización de resultados. |
+| `TouchDesigner/build_network.py` | Constructor de la red. |
+| `TouchDesigner/update_workflow.py` | Actualizador del componente existente. |
+| `TouchDesigner/preview_top.py` | Callbacks de la previsualización Script TOP. |
+| `TouchDesigner/editorial_solver.tox` | Componente reutilizable. |
+| `TouchDesigner/layout_workflow.toe` | Proyecto de TouchDesigner. |
 | `previews/` | Ejemplos de layouts en SVG. |
 
 ## Verificación fuera de TouchDesigner

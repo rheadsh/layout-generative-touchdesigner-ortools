@@ -14,9 +14,9 @@ c.par.Blockcount.normMin = 1
 c.par.Blockcount.normMax = 100
 c.par.Blockcount.min = 1
 c.par.Blockcount.clampMin = True
-c.op('EditorialSolverExt').text = (root_dir / 'td/EditorialSolverExt.py').read_text(encoding='utf-8-sig')
+c.op('EditorialSolverExt').text = (root_dir / 'TouchDesigner/EditorialSolverExt.py').read_text(encoding='utf-8-sig')
 # Reuse the constructor's callback definitions, without running build().
-source = (root_dir / 'td/build_network.py').read_text(encoding='utf-8-sig')
+source = (root_dir / 'TouchDesigner/build_network.py').read_text(encoding='utf-8-sig')
 namespace = {}
 exec(source[:source.index('def build():')], namespace)
 c.op('par_exec').text = namespace['PAR_EXEC']
