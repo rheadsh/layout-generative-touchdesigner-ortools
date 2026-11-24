@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="360.0" height="480.0" viewBox="0 0 1080.0 1440.0">
-<rect width="1080.0" height="1440.0" fill="#fff" stroke="#000"/>
-<rect x="48.0" y="48.0" width="984.0" height="242.2" fill="#111"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="480" viewBox="0 0 1080 1440">
+<rect width="1080" height="1440" fill="#fff" stroke="#000"/>
+<rect x="48.0" y="48.0" width="984.0" height="242.2" fill="#111111"/>
 <text x="58.0" y="88.0" font-size="32" font-family="sans-serif" fill="#fff">titular</text>
 <rect x="463.0" y="302.2" width="569.0" height="327.0" fill="#c9c3b8"/>
 <text x="473.0" y="342.2" font-size="32" font-family="sans-serif" fill="#000">foto1</text>

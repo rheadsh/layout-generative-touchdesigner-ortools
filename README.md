@@ -27,16 +27,20 @@ cachés locales se excluyen con `.gitignore`.
 Abre `TouchDesigner/layout_workflow.toe` o arrastra `TouchDesigner/editorial_solver.tox` a tu red.
 El componente del proyecto está en `/project1/editorial_solver`.
 
-Para construirlo desde los scripts, ajusta `PROJECT_DIR` en `TouchDesigner/build_network.py`
-a la ruta de tu copia y ejecuta en el Textport de TouchDesigner:
+Para construirlo desde los scripts, ejecuta en el Textport de TouchDesigner:
 
 ```python
 exec(open('/ruta/layout-generative/TouchDesigner/build_network.py', encoding='utf-8-sig').read())
 ```
 
+Los scripts localizan la raíz del proyecto con la variable de entorno
+`LAYOUT_GENERATIVE_DIR`; si no existe, la buscan en la carpeta del `.toe` o en su
+carpeta padre (por ejemplo, `TouchDesigner/layout_workflow.toe`).
+
 **El constructor reemplaza el componente `editorial_solver` existente.** Guarda
-antes los cambios que quieras conservar. Para actualizar el componente existente,
-ajusta `root_dir` en `TouchDesigner/update_workflow.py` y ejecuta:
+antes los cambios que quieras conservar. Para actualizar el componente existente
+sin reconstruirlo (agrega parámetros nuevos, `layout_config` y la infraestructura
+de medios que falte), ejecuta:
 
 ```python
 exec(open('/ruta/layout-generative/TouchDesigner/update_workflow.py', encoding='utf-8-sig').read())
@@ -63,6 +67,8 @@ Los controles están en una sola página, **Solver**:
 | `Seed` | Variación de la distribución. |
 | `Charspermodule` | Capacidad tipográfica estimada por módulo. |
 | `Timelimit`, `Workers` | Tiempo máximo y número de hilos del solver. |
+| `Wcoverage`, `Warea`, `Waspect`, `Woptional`, `Wcolumn` | Pesos del objetivo (0–20): cobertura de la página, área según prioridad, proporción de imágenes, presencia de opcionales y variación por columna. |
+| `Deterministic` | La misma `Seed` produce siempre el mismo layout, aunque no se demuestre el óptimo. |
 | `Libpath`, `Status` | Ruta de dependencias y estado del cálculo. |
 
 La resolución también acepta expresiones como `op('/project1/mi_top').width` y
@@ -107,26 +113,56 @@ las réplicas ausentes se conservan y se marcan con `active=0` en `media_map`.
 La previsualización todavía no compone las imágenes o videos: conecta las entradas
 al render final utilizando los rectángulos de `layout_out` o `media_map`.
 
+## Validación y diagnóstico
+
+Antes de resolver se valida la entrada: ids vacíos o duplicados, `min_*` mayor que
+`max_*` o que la retícula, valores negativos, texto que no cabe y relaciones
+desconocidas o hacia ids inexistentes. Los errores aparecen en `Status` con la fila
+y la columna. Si no hay solución (`INFEASIBLE`), `Status` indica qué bloques
+requeridos no caben juntos.
+
+Con Autosolve, cada cálculo parte de la solución anterior y se omite si la entrada
+no cambió.
+
 ## Archivos
 
 | Archivo | Función |
 |---|---|
-| `editorial_solver.py` | Modelo CP-SAT independiente de TouchDesigner. |
-| `test_solver.py` | Prueba de cuatro semillas y generación de previews SVG. |
-| `TouchDesigner/EditorialSolverExt.py` | Lectura de bloques, cálculo en segundo plano y actualización de resultados. |
-| `TouchDesigner/build_network.py` | Constructor de la red. |
+| `editorial_solver.py` | Modelo CP-SAT independiente de TouchDesigner, validación y lectura de filas. |
+| `layout_config.py` | Columnas, bloques de ejemplo y colores compartidos (sin dependencias). |
+| `TouchDesigner/EditorialSolverExt.py` | Lectura de parámetros, cálculo en segundo plano y actualización de resultados. |
+| `TouchDesigner/build_network.py` | Constructor de la red e infraestructura de medios. |
 | `TouchDesigner/update_workflow.py` | Actualizador del componente existente. |
 | `TouchDesigner/preview_top.py` | Callbacks de la previsualización Script TOP. |
 | `TouchDesigner/editorial_solver.tox` | Componente reutilizable. |
 | `TouchDesigner/layout_workflow.toe` | Proyecto de TouchDesigner. |
+| `tests/` | Pruebas con pytest del solver y comprobaciones estáticas de los scripts de TD. |
+| `scripts/render_previews.py` | Genera los SVG de `previews/`. |
 | `previews/` | Ejemplos de layouts en SVG. |
 
-## Verificación fuera de TouchDesigner
+## Desarrollo
+
+`uv sync` instala también las herramientas de desarrollo (pytest y ruff). Desde la
+raíz del proyecto:
 
 ```bash
-uv run python test_solver.py previews
+uv run pytest
 ```
 
-Genera cuatro layouts y comprueba límites de la retícula, ausencia de solapes y
-orden de lectura. Esta prueba valida el solver; la integración de operadores se
-verifica dentro de TouchDesigner.
+```bash
+uv run ruff check .
+```
+
+```bash
+uv run ruff format .
+```
+
+```bash
+uv run python scripts/render_previews.py previews
+```
+
+Las pruebas cubren el solver (geometría, relaciones, validación, diagnóstico,
+determinismo) y comprueban que los scripts de TouchDesigner compilan y que sus
+pesos coinciden con los del solver. La integración de operadores se verifica dentro
+de TouchDesigner. La configuración de ruff está en `pyproject.toml`; declara como
+globales los nombres que TouchDesigner inyecta (`op`, `parent`, `baseCOMP`…).

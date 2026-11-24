@@ -10,37 +10,38 @@ llamado cada frame por ./frame_exec, lo vuelca a layout_out en el hilo principal
 """
 
 import hashlib
-import re
 import queue
+import re
 import sys
 import threading
 import time
 
-BLOCK_COLS = ['id', 'kind', 'min_w', 'max_w', 'min_h', 'max_h', 'priority',
-              'aspect', 'chars', 'required', 'rel', 'text']
-OUT_COLS = ['id', 'kind', 'col', 'row', 'cols', 'rows',
-            'x', 'y', 'w', 'h',          # px, origen arriba-izquierda
-            'tx', 'ty', 'sx', 'sy',      # centro/escala en px, origen abajo-izquierda (TD)
-            'text']
+WEIGHT_PARS = {
+    'coverage': 'Wcoverage',
+    'area': 'Warea',
+    'aspect': 'Waspect',
+    'optional': 'Woptional',
+    'column': 'Wcolumn',
+}
+
+
+SOLVING = 'solving…'
+UNCHANGED = '  (sin cambios)'
 
 
 class EditorialSolverExt:
-
     def __init__(self, ownerComp):
         self.ownerComp = ownerComp
-        # Migrate older components to a single custom parameter page.
-        if hasattr(ownerComp.par, 'Blockcount'):
-            solver_page = next((p for p in ownerComp.customPages
-                                if p.name == 'Solver'), None)
-            if solver_page is not None:
-                ownerComp.par.Blockcount.page = solver_page
-                for page in list(ownerComp.customPages):
-                    if page.name == 'Pieza' and not page.pars:
-                        page.destroy()
         self._results = queue.Queue()
         self._busy = False
-        self._pending = False      # se pidió otro solve mientras uno corría
+        self._pending = False  # se pidió otro solve mientras uno corría
         self._t0 = 0.0
+        self._lastBlocks = None  # bloques del último resultado válido (hint)
+        self._lastKey = None  # clave de entrada del último resultado válido
+        # Si TD reinicializa la extensión (p. ej. al recargar este archivo) durante
+        # un solve, el hilo entrega el resultado a la instancia anterior. Se relanza.
+        if str(ownerComp.par.Status.eval()).startswith(SOLVING):
+            run('args[0].Solve()', self, delayFrames=1)
 
     # ------------------------------------------------------------------ API
 
@@ -50,22 +51,39 @@ class EditorialSolverExt:
             self._pending = True
             return
         try:
+            self._config()  # falla aquí, antes de lanzar el hilo, si falta el DAT
             solver = self._solverModule()
             blocks = self._readBlocks(solver)
             page = self._readPage(solver)
+            weights = self._readWeights(solver)
+            # Errores de entrada al instante, en el hilo principal.
             page.validate()
+            weights.validate()
+            solver.validate_blocks(blocks, page)
         except Exception as e:
+            self._lastKey = None  # Status ya no describe el último resultado
             self._setStatus('ERROR: ' + str(e))
             debug(e)
             return
 
         p = self.ownerComp.par
-        args = (solver, blocks, page, int(p.Seed.eval()), float(p.Timelimit.eval()),
-                int(p.Workers.eval()))
+        seed, limit, workers = int(p.Seed.eval()), float(p.Timelimit.eval()), int(p.Workers.eval())
+        det = bool(p.Deterministic.eval()) if hasattr(p, 'Deterministic') else False
+        key = repr((blocks, page, seed, limit, workers, weights, det))
+        if key == self._lastKey:
+            # Status ya describe ese resultado; solo se marca, sin reemplazarlo.
+            status = str(p.Status.eval())
+            if not status.endswith(UNCHANGED):
+                self._setStatus(status + UNCHANGED)
+            return
         self._busy = True
         self._t0 = time.perf_counter()
-        self._setStatus('solving…')
-        threading.Thread(target=self._worker, args=args, daemon=True).start()
+        self._setStatus(SOLVING)
+        threading.Thread(
+            target=self._worker,
+            args=(solver, blocks, page, seed, limit, workers, weights, det, self._lastBlocks, key),
+            daemon=True,
+        ).start()
 
     def Resizeblocks(self):
         """Resize input rows; keep removed rows in storage for later reuse."""
@@ -82,10 +100,7 @@ class EditorialSolverExt:
             if i in cached:
                 rows.append(cached[i])
             else:
-                values = dict(id='bloque_' + str(i + 1), kind='image',
-                              min_w=1, max_w=0, min_h=1, max_h=0,
-                              priority=1, aspect='', chars=0, required=1,
-                              rel='', text='')
+                values = dict(self._config().NEW_BLOCK_ROW, id='bloque_' + str(i + 1))
                 rows.append([values.get(key, '') for key in header])
         comp.store('block_rows_cache', cached)
         table.text = '\n'.join('\t'.join(map(str, row)) for row in rows)
@@ -105,13 +120,29 @@ class EditorialSolverExt:
 
     # ------------------------------------------------------------ internos
 
-    def _worker(self, solver, blocks, page, seed, time_limit, workers):
+    def _worker(self, solver, blocks, page, seed, time_limit, workers, weights, det, hint, key):
         try:
-            res = solver.solve(blocks, page, seed=seed, time_limit=time_limit, workers=workers)
+            res = solver.solve(
+                blocks,
+                page,
+                seed=seed,
+                time_limit=time_limit,
+                workers=workers,
+                weights=weights,
+                hint=hint,
+                deterministic=det,
+            )
         except Exception as e:
             res = {'status': 'ERROR: ' + str(e), 'objective': None, 'blocks': []}
         res['page_h'] = page.height
+        res['key'] = key
         self._results.put(res)
+
+    def _config(self):
+        dat = self.ownerComp.op('layout_config')
+        if dat is None:
+            raise RuntimeError('falta el DAT layout_config; ejecuta update_workflow.py')
+        return dat.module
 
     def _solverModule(self):
         lib = self.ownerComp.par.Libpath.eval()
@@ -122,134 +153,115 @@ class EditorialSolverExt:
 
     def _readPage(self, solver):
         p = self.ownerComp.par
-        return solver.Page(cols=int(p.Cols), rows=int(p.Rows),
-                           width=float(p.Pagew), height=float(p.Pageh),
-                           margin=float(p.Margin), gutter=float(p.Gutter),
-                           row_gutter=float(p.Rowpadding),
-                           chars_per_module=int(p.Charspermodule))
+        return solver.Page(
+            cols=int(p.Cols.eval()),
+            rows=int(p.Rows.eval()),
+            width=float(p.Pagew.eval()),
+            height=float(p.Pageh.eval()),
+            margin=float(p.Margin.eval()),
+            gutter=float(p.Gutter.eval()),
+            row_gutter=float(p.Rowpadding.eval()),
+            chars_per_module=int(p.Charspermodule.eval()),
+        )
+
+    def _readWeights(self, solver):
+        defaults = solver.Weights()
+        p = self.ownerComp.par
+        vals = {}
+        for field, name in WEIGHT_PARS.items():
+            par = getattr(p, name, None)
+            vals[field] = int(par.eval()) if par is not None else getattr(defaults, field)
+        return solver.Weights(**vals)
 
     def _readBlocks(self, solver):
         t = self.ownerComp.op('blocks_in')
-        header = [c.val for c in t.row(0)]
-        blocks = []
-        for r in range(1, t.numRows):
-            row = {h: t[r, h].val.strip() for h in header}
-            if not row.get('id'):
-                continue
-
-            def num(k, d=0, f=int):
-                v = row.get(k, '')
-                return f(v) if v not in ('', None) else d
-
-            blocks.append(solver.Block(
-                id=row['id'],
-                kind=row.get('kind') or 'text',
-                min_w=num('min_w', 1), max_w=num('max_w', 0),
-                min_h=num('min_h', 1), max_h=num('max_h', 0),
-                priority=num('priority', 1),
-                aspect=num('aspect', 0.0, float),
-                chars=num('chars', 0) or len(row.get('text', '')),
-                required=row.get('required', '1') not in ('0', 'false', 'False', 'no'),
-                rel=row.get('rel', '').split(),
-                text=row.get('text', ''),
-            ))
-        return blocks
+        rows = [[cell.val for cell in t.row(r)] for r in range(t.numRows)]
+        return solver.blocks_from_rows(rows[0], rows[1:]) if rows else []
 
     def _write(self, res):
         out = self.ownerComp.op('layout_out')
         out.clear()
-        out.appendRow(OUT_COLS)
+        out.appendRow(list(self._config().OUTPUT_COLUMNS))
         page_h = res.get('page_h', 0)
         for b in res['blocks']:
             tx = b['x'] + b['w'] / 2
             ty = page_h - (b['y'] + b['h'] / 2)
-            out.appendRow([b['id'], b['kind'], b['col'], b['row'], b['cols'], b['rows'],
-                           round(b['x'], 2), round(b['y'], 2), round(b['w'], 2), round(b['h'], 2),
-                           round(tx, 2), round(ty, 2), round(b['w'], 2), round(b['h'], 2),
-                           b['text']])
-        if res['status'] in ('OPTIMAL', 'FEASIBLE'):
-            self._syncMedia(res['blocks'])
+            out.appendRow(
+                [
+                    b['id'],
+                    b['kind'],
+                    b['col'],
+                    b['row'],
+                    b['cols'],
+                    b['rows'],
+                    round(b['x'], 2),
+                    round(b['y'], 2),
+                    round(b['w'], 2),
+                    round(b['h'], 2),
+                    round(tx, 2),
+                    round(ty, 2),
+                    round(b['w'], 2),
+                    round(b['h'], 2),
+                    b['text'],
+                ]
+            )
+        ok = res['status'] in ('OPTIMAL', 'FEASIBLE')
+        self._lastKey = None
+        if ok:
+            self._lastBlocks = res['blocks']
+            self._lastKey = res.get('key')
+            if not self._syncMedia(res['blocks']):
+                return
         ms = (time.perf_counter() - self._t0) * 1000
-        obj = res.get('objective')
-        self._setStatus('{}  {:.0f} ms  obj={}  bloques={}'.format(
-            res['status'], ms, obj, len(res['blocks'])))
+        msg = '{}  {:.0f} ms  obj={}  bloques={}'.format(
+            res['status'], ms, res.get('objective'), len(res['blocks'])
+        )
+        if res['status'].startswith('ERROR'):
+            msg = res['status']
+        elif res['status'] == 'INFEASIBLE' and res.get('conflicts'):
+            msg = 'INFEASIBLE  conflicto: ' + ', '.join(map(str, res['conflicts']))
+        self._setStatus(msg)
         preview = self.ownerComp.op('preview')
         if preview is not None:
             preview.cook(force=True)
 
     def _syncMedia(self, blocks):
-        """Feed a native Replicator; never create content nodes in Python."""
+        """Feed the native Replicator; the infrastructure comes from setup_media()."""
         comp = self.ownerComp
         media = comp.op('media_inputs')
-        if media is None:
-            media = comp.create(baseCOMP, 'media_inputs')
-            media.nodeX, media.nodeY = 1000, -400
-        table = media.op('replicate_table')
-        if table is None:
-            table = media.create(tableDAT, 'replicate_table')
-            table.nodeX, table.nodeY = 0, 200
-        master = media.op('movie_master')
-        if master is None:
-            master = media.create(moviefileinTOP, 'movie_master')
-            master.par.file = ''
-            master.nodeX, master.nodeY = -250, 0
-        callbacks = media.op('replicator_callbacks')
-        if callbacks is None:
-            callbacks = media.create(textDAT, 'replicator_callbacks')
-        if callbacks.text != MEDIA_CALLBACKS:
-            callbacks.text = MEDIA_CALLBACKS
-        replicator = media.op('replicator')
-        if replicator is None:
-            replicator = media.create(replicatorCOMP, 'replicator')
-        replicator.par.master = master.path
-        replicator.par.destination = media.path
-        replicator.par.callbacks = callbacks.path
-        replicator.par.ignorefirstrow = True
-        replicator.par.namefromtable = 'colbyname'
-        replicator.par.colname = 'name'
-        replicator.par.opprefix = ''
-        replicator.nodeX, replicator.nodeY = 0, 0
+        table = media.op('replicate_table') if media is not None else None
+        mapping = comp.op('media_map')
+        if table is None or mapping is None:
+            self._setStatus('ERROR: falta la infraestructura de medios; ejecuta update_workflow.py')
+            return False
         rows = [['name', 'id', 'kind', 'x', 'y', 'w', 'h']]
         for block in blocks:
             slug = re.sub(r'[^a-zA-Z0-9_]', '_', block['id'])[:40]
             digest = hashlib.sha256(block['id'].encode('utf-8')).hexdigest()[:12]
-            rows.append(['movie_' + slug + '_' + digest, block['id'], block['kind'],
-                         block['x'], block['y'], block['w'], block['h']])
+            rows.append(
+                [
+                    'movie_' + slug + '_' + digest,
+                    block['id'],
+                    block['kind'],
+                    block['x'],
+                    block['y'],
+                    block['w'],
+                    block['h'],
+                ]
+            )
         # One update avoids removing/recreating nodes between clear and append.
         table.text = '\n'.join('\t'.join(map(str, row)) for row in rows)
-        replicator.par.template = table.path
-        mapping = comp.op('media_map')
-        if mapping is None:
-            mapping = comp.create(tableDAT, 'media_map')
-            mapping.nodeX, mapping.nodeY = 1000, -200
         active = {row[0] for row in rows[1:]}
         map_rows = [['id', 'kind', 'movie_top', 'active', 'x', 'y', 'w', 'h']]
         for row in rows[1:]:
-            map_rows.append([row[1], row[2], media.path + '/' + row[0], 1] + row[3:])
+            map_rows.append([row[1], row[2], media.path + '/' + row[0], 1, *row[3:]])
         for node in media.children:
             block_id = node.fetch('layout_block_id', None)
             if block_id is not None and node.name not in active:
                 map_rows.append([block_id, '', node.path, 0, '', '', '', ''])
         mapping.text = '\n'.join('\t'.join(map(str, row)) for row in map_rows)
+        return True
 
     def _setStatus(self, msg):
-        self.ownerComp.par.Status = msg
-
-
-MEDIA_CALLBACKS = """def onReplicate(comp, allOps, newOps, template, master):
-    for node in allOps:
-        for r in range(1, template.numRows):
-            if template[r, 'name'].val == node.name:
-                node.store('layout_block_id', template[r, 'id'].val)
-                node.store('layout_active', True)
-                node.store('layout_rect', {k: float(template[r, k].val)
-                                          for k in ('x', 'y', 'w', 'h')})
-                node.comment = 'Content for block: ' + template[r, 'id'].val
-                break
-    return
-
-def onRemoveReplicant(comp, replicant):
-    # Retain assigned files when optional blocks leave the solution.
-    replicant.store('layout_active', False)
-    return
-"""
+        # Status es una sola línea: los errores de validación llegan en varias.
+        self.ownerComp.par.Status = '; '.join(str(msg).splitlines())
