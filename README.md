@@ -4,6 +4,15 @@ Workflow de layout automático con Python y OR-Tools CP-SAT. Distribuye bloques
 sobre una retícula sin solapes y genera entradas Movie File In TOP mediante un
 Replicator COMP para asignar imágenes o videos.
 
+## Demostración
+
+El solver recalcula la composición en TouchDesigner al cambiar la semilla, el
+margen y el número de columnas.
+
+[![Demostración animada del solver en TouchDesigner](previews/touchdesigner-demo.gif)](previews/touchdesigner-demo.mp4)
+
+[Ver o descargar el video MP4](previews/touchdesigner-demo.mp4)
+
 ## Requisitos e instalación
 
 - TouchDesigner con Python 3.11 (el workflow se creó en 2025.33230).
